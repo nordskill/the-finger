@@ -1,0 +1,20 @@
+{
+  "name": "the-finger",
+  "version": "1.0.0",
+  "description": "JavaScript library to detect touch gestures:\r - tap\r - double tap\r - long press\r - drag\r - flick\r - rotate\r - pinch\r - spread",
+  "main": "index.js",
+  "scripts": {
+    "start": "browser-sync start --server --files \"./**/*\" --no-ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@gitlab.com/nordskill/the-finger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/nordskill/the-finger/issues"
+  },
+  "homepage": "https://gitlab.com/nordskill/the-finger#readme"
+}
