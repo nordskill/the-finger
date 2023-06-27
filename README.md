@@ -26,7 +26,7 @@ Then, create a new instance and pass the HTML element you want to track:
 ```javascript
 const element = document.getElementById('target');
 const finger = new TheFinger(element);
-const filger.track('drag', callbackFunction);
+const finger.track('drag', callbackFunction);
 
 ```
 
