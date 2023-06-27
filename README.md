@@ -26,7 +26,7 @@ Then, create a new instance and pass the HTML element you want to track:
 ```javascript
 const element = document.getElementById('target');
 const finger = new TheFinger(element);
-const finger.track('drag', callbackFunction);
+finger.track('drag', callbackFunction);
 
 ```
 
