@@ -50,7 +50,7 @@ const finger = new TheFinger(element, settings);
 
 ## Methods
 
-`TheFinger` provides several methods to customize its behavior:
+**TheFinger** provides several methods to customize its behavior:
 
 - `on(element)` - Attach touch event listeners to the provided HTML element.
 
