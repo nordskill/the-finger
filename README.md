@@ -18,7 +18,7 @@ The recognizable gestures are:
 To utilize `TheFinger`, first import the function:
 
 ```javascript
-import { TheFinger } from './TheFinger';
+import { TheFinger } from './thefinger';
 ```
 
 Then, create a new instance and pass the HTML element you want to track:
