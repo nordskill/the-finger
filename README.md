@@ -60,7 +60,7 @@ const finger = new TheFinger(element, settings);
 
     - `gesture` (required): A string representing the gesture type to be tracked. Available gestures are:
         - `'press'`
-        - `'drag'` (read **'flick'** property in callback parameter for flick detection)
+        - `'drag'` (read `'flick'` property in callback parameter for flick detection)
         - `'rotate'`
         - `'pinch-spread'`
         - `'double-tap'`
