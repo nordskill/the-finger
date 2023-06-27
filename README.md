@@ -32,7 +32,7 @@ const filger.track('drag', callbackFunction);
 
 ## Function Parameters
 
-`TheFinger` accepts two parameters:
+**TheFinger** accepts two parameters:
 
 - `element` (required) - The HTML element that the function will attach event listeners to. This element is the area where the touch gestures will be detected.
 
