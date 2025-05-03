@@ -10,24 +10,37 @@ function enableVisualization() {
     ctx = canvas.getContext('2d');
     window.addEventListener('resize', () => elem = canvas.getBoundingClientRect());
 }
-function visualize(touches) {
 
+function visualize(touches) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw lines connecting all touch points
     if (touches.length > 1) {
-        ctx.beginPath();
-        ctx.lineWidth = 8;
-        ctx.moveTo((touches[0].clientX - elem.left) * pixelRatio, (touches[0].clientY - elem.top) * pixelRatio);
-        ctx.lineTo((touches[1].clientX - elem.left) * pixelRatio, (touches[1].clientY - elem.top) * pixelRatio);
-        ctx.strokeStyle = '#FFF';
-        ctx.stroke();
+        for (let i = 0; i < touches.length; i++) {
+            for (let j = i + 1; j < touches.length; j++) {
+                const x1 = (touches[i].clientX - elem.left) * pixelRatio;
+                const y1 = (touches[i].clientY - elem.top) * pixelRatio;
+                const x2 = (touches[j].clientX - elem.left) * pixelRatio;
+                const y2 = (touches[j].clientY - elem.top) * pixelRatio;
+
+                ctx.beginPath();
+                ctx.lineWidth = 8;
+                ctx.strokeStyle = '#FFF';
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+        }
     }
 
-    ctx.beginPath();
+    // Draw all touch points as circles
     for (let i = 0; i < touches.length; i++) {
-        ctx.arc((touches[i].clientX - elem.left) * pixelRatio, (touches[i].clientY - elem.top) * pixelRatio, 25 * pixelRatio, 0, 2 * Math.PI);
-    }
-    ctx.fillStyle = '#FFF';
-    ctx.fill();
+        const x = (touches[i].clientX - elem.left) * pixelRatio;
+        const y = (touches[i].clientY - elem.top) * pixelRatio;
 
+        ctx.beginPath();
+        ctx.fillStyle = '#FFF';
+        ctx.arc(x, y, 25 * pixelRatio, 0, 2 * Math.PI);
+        ctx.fill();
+    }
 }
