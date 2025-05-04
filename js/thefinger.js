@@ -156,6 +156,75 @@ export class TheFinger {
             }
         },
 
+        pan: {
+            start: (touches) => {
+                if (touches.length < 2) return;
+                const { x, y } = this._getAveragePosition(touches);
+                this.#startX = x;
+                this.#startY = y;
+            },
+            move: (touches) => {
+                if (touches.length < 2) return null;
+
+                const { x, y, touchesArr } = this._getAveragePosition(touches);
+
+                this.#currentTouch = {
+                    touches: touchesArr,
+                    x,
+                    y,
+                    startX: this.#startX,
+                    startY: this.#startY,
+                    step: this._getStepSpeed(),
+                    speed: this._getSpeed(),
+                    angle: this._getAngle(this.#startX, this.#startY, x, y)
+                };
+
+                if (!this.#initialDirection) {
+                    this.#initialDirection = this._getDirection(this.#startX, this.#startY, x, y);
+                    this.#currentTouch.initial_direction = this.#initialDirection;
+                }
+
+                return { type: 'pan', data: this.#currentTouch };
+            },
+            end: () => {
+                if (
+                    this.#touchSequence.length < 2 ||
+                    !this.#moving ||
+                    this.#touchHistory.size === 0
+                ) return null;
+
+                // build touches[] from the last point of every finger’s history
+                const touchesFinal = [...this.#touchHistory.values()].map(h => ({
+                    x: h.x[h.x.length - 1],
+                    y: h.y[h.y.length - 1]
+                }));
+
+                const len = touchesFinal.length;
+                const x = touchesFinal.reduce((s, t) => s + t.x, 0) / len;
+                const y = touchesFinal.reduce((s, t) => s + t.y, 0) / len;
+
+                const speed = this._getSpeed();
+
+                this.#currentTouch = {
+                    touches: touchesFinal,
+                    x,
+                    y,
+                    startX: this.#startX,
+                    startY: this.#startY,
+                    step: this._getStepSpeed(),
+                    speed,
+                    angle: this._getAngle(this.#startX, this.#startY, x, y),
+                    endX: x,
+                    endY: y,
+                    initial_direction: this.#initialDirection,
+                    final_direction: this._getDirection(this.#startX, this.#startY, x, y),
+                    flick: speed >= CONSTANTS.FLICK_THRESHOLD
+                };
+
+                return { type: 'pan', data: this.#currentTouch };
+            }
+        },
+
         rotate: {
             start: (touches) => {
                 if (touches.length !== 2) return;
@@ -218,7 +287,7 @@ export class TheFinger {
                 this.#distanceStart = this._getDistance(x1, y1, x2, y2);
             },
             move: (touches) => {
-                if (touches.length !== 2) return null;
+                if (touches.length !== 2 || !this.#watching['pinch-spread']) return null;
 
                 const [touch1, touch2] = touches;
                 const x1 = touch1.clientX;
@@ -485,6 +554,28 @@ export class TheFinger {
 
     _getDistance(x1, y1, x2, y2) {
         return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    _getAveragePosition(touches) {
+        const len = touches.length;
+        let sumX = 0, sumY = 0;
+
+        for (let i = 0; i < len; i++) {
+            sumX += touches[i].clientX - this.#areaBox.left;
+            sumY += touches[i].clientY - this.#areaBox.top;
+        }
+
+        const x = sumX / len;
+        const y = sumY / len;
+
+        return {
+            x,
+            y,
+            touchesArr: Array.from(touches).map(t => ({
+                x: t.clientX - this.#areaBox.left,
+                y: t.clientY - this.#areaBox.top
+            }))
+        };
     }
 
     _getScale(distanceStart, distance) {
