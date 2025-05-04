@@ -1,4 +1,3 @@
-// Constants
 const CONSTANTS = {
     PRESS_TIME: 350, // ms
     DOUBLE_TAP_INTERVAL: 250, // ms
@@ -8,7 +7,7 @@ const CONSTANTS = {
 const ELEMENT_STATE = new WeakMap();
 
 export class TheFinger {
-    // Private fields
+
     #element;
     #settings;
     #areaBox;
@@ -64,13 +63,25 @@ export class TheFinger {
         },
 
         press: {
+            start: () => {
+                this.#gestureType = 'press';
+                return {
+                    type: 'press',
+                    data: { x: this.#startX, y: this.#startY }
+                };
+            },
+            move: () => { },
+            end: () => { }
+        },
+
+        'long-press': {
             start: (touches, timestamp) => {
                 if (touches.length !== 1) return;
 
                 this.#pressTimer = setTimeout(() => {
-                    this.#gestureType = 'press';
+                    this.#gestureType = 'long-press';
                     this.#currentTouch = { x: this.#startX, y: this.#startY };
-                    this._executeCallback('press', [this.#currentTouch]);
+                    this._executeCallback('long-press', [this.#currentTouch]);
                 }, CONSTANTS.PRESS_TIME);
             },
             move: () => {
@@ -294,7 +305,7 @@ export class TheFinger {
         delete this.#watching[gesture];
     }
 
-    // Protected methods (extensible)
+    // Private methods
     _detectGesture(e) {
         if (this.#settings?.preventDefault) e.preventDefault();
 
@@ -331,7 +342,13 @@ export class TheFinger {
         const gestureValues = Object.values(this.gestures);
         for (let i = 0; i < gestureValues.length; i++) {
             const gesture = gestureValues[i];
-            if (gesture.start) gesture.start(touches, timestamp);
+            if (gesture.start) {
+                const result = gesture.start(touches, timestamp);
+                if (result) {
+                    this.#gestureType = result.type;
+                    this._executeCallback(result.type, [result.data, this.#touchHistory]);
+                }
+            }
         }
     }
 
