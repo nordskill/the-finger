@@ -6,12 +6,14 @@ const finger = new TheFinger(touchArea, {
     visualize: true
 });
 
-finger.track('tap', gesture => { /* do something*/ });
-finger.track('double-tap', gesture => { /* do something*/ });
-finger.track('press', gesture => { /* do something*/ });
-finger.track('drag', gesture => { console.log(gesture) });
-finger.track('rotate', gesture => { /* do something*/ });
-finger.track('pinch-spread', gesture => { /* do something*/ });
-// finger.track('flick', gesture => {});
-// finger.track('pan', gesture => {});
-// finger.track('two-finger-tap', gesture => {});
+const gestureType = document.querySelector('#gesture_type');
+
+finger.track('tap', gesture => { gestureType.innerText = 'tap'; });
+finger.track('double-tap', gesture => { gestureType.innerText = 'double-tap'; });
+finger.track('press', gesture => { gestureType.innerText = 'press'; });
+// finger.track('long-press', gesture => { gestureType.innerText = 'long-press'; });
+finger.track('rotate', gesture => { gestureType.innerText = 'rotate'; });
+finger.track('pinch-spread', gesture => { gestureType.innerText = 'pinch-spread'; });
+finger.track('drag', gesture => { gesture.flick ? gestureType.innerText = 'flick' : gestureType.innerText = 'drag'; });
+// finger.track('pan', gesture => { gestureType.innerText = 'pan'; });
+// finger.track('two-finger-tap', gesture => { gestureType.innerText = 'two-finger-tap'; });

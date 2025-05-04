@@ -1,419 +1,519 @@
-const pressTime = 350; // ms
-const doubleTapInterval = 250; // ms
-const flickTreshold = 0.75; // drag speed
+// Constants
+const CONSTANTS = {
+    PRESS_TIME: 350, // ms
+    DOUBLE_TAP_INTERVAL: 250, // ms
+    FLICK_THRESHOLD: 0.75, // drag speed
+};
 
-export function TheFinger(element, settings) {
+export class TheFinger {
+    // Private fields
+    #element;
+    #settings;
+    #areaBox;
+    #gestureType = null;
+    #moving = false;
+    #pressTimer;
+    #currentTouch = {};
+    #startTime;
+    #tapReleaseTime;
+    #startX;
+    #startY;
+    #endX;
+    #endY;
+    #rotationAngleStart;
+    #totalAngleStart;
+    #previousAngle = null;
+    #angleRelative = null;
+    #revs = 0;
+    #negativeRev = false;
+    #distanceStart;
+    #watching = {};
+    #preventDefaults = {};
+    #touchHistory = [];
+    #initialDirection;
 
-    let area = element,
-        areaBox,
-        gestureType,
-        finger = this,
-        moving = false,
-        pressTimer,
-        currentTouch = {},
-        startTime,
-        tapReleaseTime,
-        startX,
-        startY,
-        endX,
-        endY,
-        rotationAngleStart,
-        totalAngleStart,
-        previousAngle = null,
-        angleRelative = null,
-        revs = 0,
-        negativeRev = false,
-        distanceStart,
-        watching = {},
-        preventDefaults = {},
-		touchHistory = [],
-		initialDirection;
+    // Public gesture handlers - the single source of truth
+    gestures = {
+        tap: {
+            start: () => { },
+            move: () => {
+                clearTimeout(this.#pressTimer);
+            },
+            end: (touches, timestamp) => {
+                if (!this.#moving && timestamp - this.#startTime < CONSTANTS.PRESS_TIME) {
+                    clearTimeout(this.#pressTimer);
+                    if (timestamp < this.#tapReleaseTime + CONSTANTS.DOUBLE_TAP_INTERVAL + CONSTANTS.PRESS_TIME) {
+                        this.#tapReleaseTime = null;
+                        return {
+                            type: 'double-tap',
+                            data: { x: this.#startX, y: this.#startY }
+                        };
+                    } else {
+                        this.#tapReleaseTime = timestamp;
+                        return {
+                            type: 'tap',
+                            data: { x: this.#startX, y: this.#startY }
+                        };
+                    }
+                }
+                return null;
+            }
+        },
 
-    this.on = on;
-    this.off = off;
-    this.track = track;
-    this.untrack = untrack;
+        press: {
+            start: (touches, timestamp) => {
+                if (touches.length !== 1) return;
 
-    if (area) on(area);
+                this.#pressTimer = setTimeout(() => {
+                    this.#gestureType = 'press';
+                    this.#currentTouch = { x: this.#startX, y: this.#startY };
+                    this._executeCallback('press', [this.#currentTouch]);
+                }, CONSTANTS.PRESS_TIME);
+            },
+            move: () => {
+                clearTimeout(this.#pressTimer);
+            },
+            end: () => {
+                clearTimeout(this.#pressTimer);
+            }
+        },
 
-    function on(element) {
-        area = element;
-        element.addEventListener('touchstart', detectGesture);
-        element.addEventListener('touchmove', detectGesture);
-        element.addEventListener('touchend', detectGesture);
+        drag: {
+            start: () => { },
+            move: (touches) => {
+                if (touches.length !== 1 || this.#gestureType === 'pinch-spread') return null;
+
+                const touch = touches[0];
+                const x = touch.clientX - this.#areaBox.left;
+                const y = touch.clientY - this.#areaBox.top;
+
+                this.#currentTouch = {
+                    x,
+                    y,
+                    startX: this.#startX,
+                    startY: this.#startY,
+                    step: this._getStepSpeed(),
+                    speed: this._getSpeed(),
+                    angle: this._getAngle(this.#startX, this.#startY, x, y)
+                };
+
+                if (!this.#initialDirection) {
+                    this.#initialDirection = this._getDirection(this.#startX, this.#startY, x, y);
+                    this.#currentTouch.initial_direction = this.#initialDirection;
+                }
+
+                return {
+                    type: 'drag',
+                    data: this.#currentTouch
+                };
+            },
+            end: () => {
+                if (!this.#moving || this.#touchHistory.length === 0) return null;
+
+                const touchHistory = this.#touchHistory[0];
+                if (!touchHistory?.x?.length || !touchHistory?.y?.length) return null;
+
+                const xArray = touchHistory.x;
+                const yArray = touchHistory.y;
+
+                this.#endX = xArray[xArray.length - 1];
+                this.#endY = yArray[yArray.length - 1];
+
+                this.#currentTouch.endX = this.#endX;
+                this.#currentTouch.endY = this.#endY;
+                this.#currentTouch.speed = this._getSpeed();
+                this.#currentTouch.initial_direction = this.#initialDirection;
+
+                if (xArray.length > 1 && yArray.length > 1) {
+                    this.#currentTouch.final_direction = this._getDirection(
+                        xArray[xArray.length - 2],
+                        yArray[yArray.length - 2],
+                        this.#currentTouch.endX,
+                        this.#currentTouch.endY
+                    );
+                }
+
+                this.#currentTouch.flick = this.#currentTouch.speed >= CONSTANTS.FLICK_THRESHOLD;
+
+                return {
+                    type: 'drag',
+                    data: this.#currentTouch
+                };
+            }
+        },
+
+        rotate: {
+            start: (touches) => {
+                if (touches.length !== 2) return;
+
+                const [touch1, touch2] = touches;
+                const x1 = touch1.clientX;
+                const y1 = touch1.clientY;
+                const x2 = touch2.clientX;
+                const y2 = touch2.clientY;
+
+                this.#rotationAngleStart = this._getAngle(x1, y1, x2, y2);
+
+                this.#totalAngleStart = this.#rotationAngleStart > 180
+                    ? (360 * this.#revs + this.#rotationAngleStart) - 360
+                    : 360 * this.#revs + this.#rotationAngleStart;
+            },
+            move: (touches) => {
+                if (touches.length !== 2) return null;
+
+                const [touch1, touch2] = touches;
+                const x1 = touch1.clientX;
+                const y1 = touch1.clientY;
+                const x2 = touch2.clientX;
+                const y2 = touch2.clientY;
+
+                const angleAbsolute = this._getAngle(x1, y1, x2, y2);
+
+                this._calculateRotation(angleAbsolute);
+
+                const data = {
+                    touches: [
+                        { x: x1, y: y1 },
+                        { x: x2, y: y2 }
+                    ],
+                    rotation: this.#angleRelative - this.#totalAngleStart,
+                    angleAbsolute,
+                    angleRelative: this.#angleRelative
+                };
+
+                this.#currentTouch = data;
+
+                return {
+                    type: 'rotate',
+                    data
+                };
+            },
+            end: () => { }
+        },
+
+        'pinch-spread': {
+            start: (touches) => {
+                if (touches.length !== 2) return;
+
+                const [touch1, touch2] = touches;
+                const x1 = touch1.clientX;
+                const y1 = touch1.clientY;
+                const x2 = touch2.clientX;
+                const y2 = touch2.clientY;
+
+                this.#distanceStart = this._getDistance(x1, y1, x2, y2);
+            },
+            move: (touches) => {
+                if (touches.length !== 2) return null;
+
+                const [touch1, touch2] = touches;
+                const x1 = touch1.clientX;
+                const y1 = touch1.clientY;
+                const x2 = touch2.clientX;
+                const y2 = touch2.clientY;
+
+                const distance = this._getDistance(x1, y1, x2, y2);
+                const scale = this._getScale(this.#distanceStart, distance);
+
+                const data = {
+                    touches: [
+                        { x: x1, y: y1 },
+                        { x: x2, y: y2 }
+                    ],
+                    distance,
+                    scale
+                };
+
+                this.#currentTouch = data;
+
+                return {
+                    type: 'pinch-spread',
+                    data
+                };
+            },
+            end: () => {
+                if (this.#gestureType !== 'pinch-spread' ||
+                    !this.#moving ||
+                    this.#touchHistory.length === 0) return null;
+
+                this.#currentTouch.end = true;
+
+                return {
+                    type: 'pinch-spread',
+                    data: this.#currentTouch
+                };
+            }
+        }
+    };
+
+    constructor(element, settings = {}) {
+        this.#element = element;
+        this.#settings = settings;
+
+        this._detectGesture = this._detectGesture.bind(this);
+
+        if (element) this.on(element);
     }
-    function off(element) {
-        element.removeEventListener('touchstart', detectGesture);
-        element.removeEventListener('touchmove', detectGesture);
-        element.removeEventListener('touchend', detectGesture);
+
+    // Public API methods
+    on(element) {
+        this.#element = element;
+        element.addEventListener('touchstart', this._detectGesture);
+        element.addEventListener('touchmove', this._detectGesture);
+        element.addEventListener('touchend', this._detectGesture);
     }
-    function track(gesture, callback, settings) {
-        watching[gesture] = callback;
+
+    off(element) {
+        element = element || this.#element;
+        element.removeEventListener('touchstart', this._detectGesture);
+        element.removeEventListener('touchmove', this._detectGesture);
+        element.removeEventListener('touchend', this._detectGesture);
+    }
+
+    track(gesture, callback, settings) {
+        this.#watching[gesture] = callback;
         if (settings) {
             if (settings.preventDefault === true) {
-                preventDefaults[gesture] = true;
+                this.#preventDefaults[gesture] = true;
             }
             if (settings.preventDefault === 'horizontal') {
-                preventDefaults[gesture] = 'horizontal';
+                this.#preventDefaults[gesture] = 'horizontal';
             }
             if (settings.preventDefault === 'vertical') {
-                preventDefaults[gesture] = 'vertical';
+                this.#preventDefaults[gesture] = 'vertical';
             }
         }
     }
-    function untrack(gesture) {
-        delete watching[gesture];
+
+    untrack(gesture) {
+        delete this.#watching[gesture];
     }
-    function detectGesture(e) {
 
-        if (settings?.preventDefault) e.preventDefault();
+    // Protected methods (extensible)
+    _detectGesture(e) {
+        if (this.#settings?.preventDefault) e.preventDefault();
 
-        const touches = e.touches;
-        const timestamp = e.timeStamp;
+        const { touches, type, timeStamp: timestamp } = e;
 
-        let params = [];
+        switch (type) {
+            case 'touchstart':
+                this._handleTouchStart(touches, timestamp);
+                break;
+            case 'touchmove':
+                this._handleTouchMove(touches, timestamp);
+                break;
+            case 'touchend':
+                this._handleTouchEnd(touches, timestamp);
+                break;
+        }
 
-        if (e.type === 'touchstart') {
+        this._handlePreventDefault(e);
 
-            startTime = timestamp;
-            previousAngle = null;
-            angleRelative = null;
-            revs = 0;
-            negativeRev = false;
-            gestureType = null;
+        if (this.#settings?.visualize) visualize(touches);
+    }
 
-            createTouches(touches);
+    _handleTouchStart(touches, timestamp) {
+        this.#startTime = timestamp;
+        this.#previousAngle = null;
+        this.#angleRelative = null;
+        this.#revs = 0;
+        this.#negativeRev = false;
+        this.#gestureType = null;
 
-            switch (touches.length) {
-                case 1: // 1 finger
-                    pressTimer = setTimeout(() => {
-                        gestureType = 'press';
-                        currentTouch = { x: startX, y: startY };
-                        params = [currentTouch];
-                        callback(gestureType, params);
-                    }, pressTime);
-                    break;
-                case 2: // 2 fingers
-                    const x1 = touches[0].clientX,
-                        y1 = touches[0].clientY,
-                        x2 = touches[1].clientX,
-                        y2 = touches[1].clientY;
-                    rotationAngleStart = getAngle(x1, y1, x2, y2);
-                    distanceStart = getDistance(x1, y1, x2, y2);
+        this._createTouches(touches, timestamp);
 
-                    if (rotationAngleStart > 180) {
-                        totalAngleStart = (360 * revs + rotationAngleStart) - 360;
-                    } else {
-                        totalAngleStart = 360 * revs + rotationAngleStart;
-                    }
-                    break;
-                default:
-                    break;
+        // Run all gesture start handlers
+        Object.values(this.gestures).forEach(gesture => {
+            if (gesture.start) gesture.start(touches, timestamp);
+        });
+    }
+
+    _handleTouchMove(touches, timestamp) {
+        this.#moving = true;
+        this._saveToHistory(touches, timestamp);
+
+        // Run all gesture move handlers
+        Object.values(this.gestures).forEach(gesture => {
+            if (gesture.move) {
+                const result = gesture.move(touches, timestamp);
+                if (result) {
+                    this.#gestureType = result.type;
+                    this._executeCallback(result.type, [result.data, this.#touchHistory]);
+                }
             }
+        });
+    }
 
-        }
-        if (e.type === 'touchmove') {
-
-            clearTimeout(pressTimer);
-            moving = true;
-
-            const x = touches[0].clientX - areaBox.left;
-            const y = touches[0].clientY - areaBox.top;
-
-            // if (x > 0 && x < window.innerWidth && y > 0 && y < window.innerHeight) {
-
-            // if (x > area.left && x < area.right && y > area.top && y < area.bottom) {
-
-            saveToHistory(touches);
-
-            currentTouch = {};
-
-            switch (touches.length) {
-                case 1:
-                    if (gestureType !== 'pinch-spread') {
-                        currentTouch.x = x;
-                        currentTouch.y = y;
-                        currentTouch.startX = startX;
-                        currentTouch.startY = startY;
-                        currentTouch.step = getStepSpeed(touchHistory);
-                        currentTouch.speed = getSpeed();
-                        currentTouch.angle = getAngle(startX, startY, x, y);
-
-						if (!initialDirection) {
-							initialDirection = getDirection(startX, startY, x, y);
-							currentTouch.initial_direction = initialDirection;
-						}
-
-                        gestureType = 'drag';
-                        params = [currentTouch, touchHistory];
-                        callback(gestureType, params);
-                    }
-                    break;
-                case 2:
-                    const x1 = touches[0].clientX,
-                        y1 = touches[0].clientY,
-                        x2 = touches[1].clientX,
-                        y2 = touches[1].clientY;
-                    const distance = getDistance(x1, y1, x2, y2);
-                    const scale = getScale(distanceStart, distance);
-                    const angleAbsolute = getAngle(x1, y1, x2, y2);
-
-                    if (angleAbsolute - previousAngle <= -180) {
-                        if (negativeRev) {
-                            revs === 0;
-                            negativeRev = false;
-                        } else {
-                            revs++;
-                        }
-                    } else if (angleAbsolute - previousAngle >= 180) {
-                        if (revs === 0 && !negativeRev) {
-                            negativeRev = true;
-                        } else {
-                            revs--;
-                        }
-                    }
-
-                    if (negativeRev || revs < 0) {
-                        angleRelative = (360 * revs + angleAbsolute) - 360;
-                    } else {
-                        angleRelative = 360 * revs + angleAbsolute;
-                    }
-
-                    const rotation = angleRelative - totalAngleStart;
-                    previousAngle = angleAbsolute;
-
-                    gestureType = 'rotate';
-                    currentTouch = {
-                        touches: [
-                            { x: x1, y: y2 },
-                            { x: x2, y: y2 }
-                        ],
-                        rotation,
-                        angleAbsolute,
-                        angleRelative
-                    }
-                    params = [currentTouch, touchHistory];
-                    callback(gestureType, params);
-
-                    gestureType = 'pinch-spread';
-                    currentTouch = {
-                        touches: [
-                            { x: x1, y: y2 },
-                            { x: x2, y: y2 }
-                        ],
-                        distance,
-                        scale
-                    }
-                    params = [currentTouch, touchHistory];
-                    callback(gestureType, params);
-
-                    break;
-                default:
-                    break;
+    _handleTouchEnd(touches, timestamp) {
+        // Run all gesture end handlers
+        Object.values(this.gestures).forEach(gesture => {
+            if (gesture.end) {
+                const result = gesture.end(touches, timestamp);
+                if (result) {
+                    this.#gestureType = result.type;
+                    this._executeCallback(result.type, [result.data, this.#touchHistory]);
+                }
             }
+        });
 
-            //     } else {
-            //         finishTouch();
-            //     }
-            //
-            // } else {
-            //     finishTouch();
-            // }
-
-        }
-        if (e.type === 'touchend') {
-            finishTouch();
-            moving = false;
+        if (touches.length === 0) {
+            this.#touchHistory = [];
         }
 
-        if (preventDefaults[gestureType] === true) e.preventDefault();
-        if (preventDefaults[gestureType] === 'horizontal') {
-            if (
-                currentTouch.angle > 45 && currentTouch.angle < 135 ||
-                currentTouch.angle > 225 && currentTouch.angle < 315
-            ) {
+        this.#moving = false;
+        this.#initialDirection = null;
+    }
+
+    _handlePreventDefault(e) {
+        if (this.#preventDefaults[this.#gestureType] === true) {
+            e.preventDefault();
+            return;
+        }
+
+        const angle = this.#currentTouch.angle;
+        if (!angle) return;
+
+        if (this.#preventDefaults[this.#gestureType] === 'horizontal') {
+            if ((angle > 45 && angle < 135) || (angle > 225 && angle < 315)) {
+                e.preventDefault();
+            }
+        } else if (this.#preventDefaults[this.#gestureType] === 'vertical') {
+            if ((angle > 315 || angle < 45) || (angle > 135 && angle < 225)) {
                 e.preventDefault();
             }
         }
-        if (preventDefaults[gestureType] === 'vertical') {
-            if (
-                currentTouch.angle > 315 && currentTouch.angle < 45 ||
-                currentTouch.angle > 135 && currentTouch.angle < 225
-            ) {
-                e.preventDefault();
+    }
+
+    _createTouches(touches, timestamp) {
+        this.#areaBox = this.#element.getBoundingClientRect();
+
+        for (const key of Object.keys(touches)) {
+            if (!this.#touchHistory[key]) {
+                const touch = touches[key];
+                this.#startX = touch.clientX - this.#areaBox.left;
+                this.#startY = touch.clientY - this.#areaBox.top;
+                this.#touchHistory.push(touch);
+                this.#touchHistory[key] = {
+                    x: [this.#startX],
+                    y: [this.#startY],
+                    t: [timestamp]
+                };
             }
         }
+    }
 
-        if (settings?.visualize) visualize(touches);
-        
-        function createTouches(touches) {
-            for (const key of Object.keys(touches)) {
-                if (!touchHistory[key]) {
-                    const touch = touches[key];
-                    areaBox = area.getBoundingClientRect();
-                    startX = touch.clientX - areaBox.left;
-                    startY = touch.clientY - areaBox.top;
-                    touchHistory.push(touch);
-                    touchHistory[key] = {
-                        x: [startX],
-                        y: [startY],
-                        t: [timestamp]
-                    }
-                }
+    _saveToHistory(touches, timestamp) {
+        if (this.#touchHistory.length === 0) return;
+
+        for (const key of Object.keys(touches)) {
+            const history = this.#touchHistory[key];
+            if (history) {
+                const touch = touches[key];
+                history.x.push(touch.clientX - this.#areaBox.left);
+                history.y.push(touch.clientY - this.#areaBox.top);
+                history.t.push(timestamp);
             }
         }
-        function saveToHistory(touches) {
+    }
 
-            if (touchHistory.length > 0) {
-                for (const key of Object.keys(touches)) {
-                    touchHistory[key].x.push(touches[key].clientX);
-                    touchHistory[key].y.push(touches[key].clientY);
-                    touchHistory[key].t.push(timestamp);
-                }
-            }
-
-        }
-        function getStepSpeed(touchHistory) {
-            let xDelta;
-            touchHistory.forEach(touch => {
+    _getStepSpeed() {
+        let xDelta = 0;
+        this.#touchHistory.forEach(touch => {
+            if (touch.x?.length > 1) {
                 const xArr = touch.x;
-                const xLast = xArr[xArr.length - 1];
-                const xPreLast = xArr[xArr.length - 2];
-                xDelta = Math.abs(xLast - xPreLast);
-            });
-            return xDelta;
-        }
-        function finishTouch() {
-
-            if (!moving && timestamp - startTime < pressTime) {
-
-                clearTimeout(pressTimer);
-
-                if (timestamp < tapReleaseTime + doubleTapInterval + pressTime) {
-                    tapReleaseTime = null;
-                    gestureType = 'double-tap';
-                } else {
-                    tapReleaseTime = timestamp;
-                    gestureType = 'tap';
-                }
-
-                currentTouch = { x: startX, y: startY };
-                params = [currentTouch];
-                callback(gestureType, params);
-
-            } else if (moving && touchHistory.length > 0) {
-
-                if (gestureType !== 'pinch-spread') {
-
-                    const xArray = touchHistory[0].x;
-                    const yArray = touchHistory[0].y;
-                    endX = xArray[xArray.length - 1];
-                    endY = yArray[yArray.length - 1];
-                    currentTouch.endX = endX;
-                    currentTouch.endY = endY;
-
-					currentTouch.speed = getSpeed();
-					currentTouch.initial_direction = initialDirection;
-
-					currentTouch.final_direction = getDirection(
-						touchHistory[0].x[touchHistory[0].x.length - 2],
-						touchHistory[0].y[touchHistory[0].y.length - 2],
-						currentTouch.endX,
-						currentTouch.endY
-					);
-
-                    gestureType = 'drag';
-
-                    if (currentTouch.speed >= flickTreshold) {
-						currentTouch.flick = true;
-					} else {
-						currentTouch.flick = false;
-					}
-
-                    params = [currentTouch, touchHistory];
-                    callback(gestureType, params);
-
-                } else {
-                    currentTouch.end = true;
-                    params = [currentTouch, touchHistory];
-                    callback(gestureType, params);
-                    touchHistory = [];
-                }
-
+                xDelta = Math.abs(xArr[xArr.length - 1] - xArr[xArr.length - 2]);
             }
+        });
+        return xDelta;
+    }
 
-            if (touches.length === 0) touchHistory = [];
-
-			initialDirection = null;
-
+    _getSpeed() {
+        const touchHistory = this.#touchHistory[0];
+        if (!touchHistory?.x?.length || !touchHistory?.y?.length || !touchHistory?.t?.length) {
+            return 0;
         }
-        function getSpeed() {
 
-            let tailArrayX = touchHistory[0].x;
-            let tailArrayY = touchHistory[0].y;
-            let tailArrayT = touchHistory[0].t;
-            let time, xDistance, yDistance, distance;
+        const historySize = Math.min(5, touchHistory.x.length);
+        const tailArrayX = touchHistory.x.slice(-historySize);
+        const tailArrayY = touchHistory.y.slice(-historySize);
+        const tailArrayT = touchHistory.t.slice(-historySize);
 
-            // extract last 5 records from history
+        if (tailArrayT.length < 2) return 0;
 
-            if (touchHistory[0].x.length >= 5) {
-                tailArrayX = touchHistory[0].x.slice(-5, touchHistory[0].x.length);
-                tailArrayY = touchHistory[0].y.slice(-5, touchHistory[0].y.length);
-                tailArrayT = touchHistory[0].t.slice(-5, touchHistory[0].t.length);
+        const time = tailArrayT[tailArrayT.length - 1] - tailArrayT[0];
+        if (time === 0) return 0;
+
+        const distance = this._getDistance(
+            tailArrayX[0],
+            tailArrayY[0],
+            tailArrayX[tailArrayX.length - 1],
+            tailArrayY[tailArrayY.length - 1]
+        );
+
+        return distance / time;
+    }
+
+    _getDistance(x1, y1, x2, y2) {
+        return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    _getScale(distanceStart, distance) {
+        return distance / distanceStart;
+    }
+
+    _executeCallback(gestureType, params) {
+        if (this.#touchHistory.length > 0 && this.#watching[gestureType]) {
+            this.#watching[gestureType].apply(this, params);
+        }
+    }
+
+    _getAngle(sX, sY, eX, eY) {
+        const dX = eX - sX;
+        const dY = eY - sY;
+        const radians = Math.atan2(dY, dX);
+        let angle = radians * 180 / Math.PI + 90;
+
+        if (angle < 0) angle += 360;
+        if (angle > 360) angle -= 360;
+
+        return angle;
+    }
+
+    _getDirection(startX, startY, x, y) {
+        const angle = this._getAngle(startX, startY, x, y);
+
+        if (angle >= 315 || angle < 45) return 'top';
+        if (angle >= 45 && angle < 135) return 'right';
+        if (angle >= 135 && angle < 225) return 'bottom';
+        if (angle >= 225 && angle < 315) return 'left';
+    }
+
+    _calculateRotation(angleAbsolute) {
+        if (this.#previousAngle === null) {
+            this.#previousAngle = angleAbsolute;
+            return;
+        }
+
+        if (angleAbsolute - this.#previousAngle <= -180) {
+            if (this.#negativeRev) {
+                this.#revs = 0;
+                this.#negativeRev = false;
+            } else {
+                this.#revs++;
             }
-
-            time = tailArrayT[tailArrayT.length - 1] - tailArrayT[0];
-
-            distance = getDistance(
-                tailArrayX[0],
-                tailArrayY[0],
-                tailArrayX[tailArrayX.length - 1],
-                tailArrayY[tailArrayY.length - 1]
-            );
-
-            return distance / time;
-
-        }
-        function getDistance(x1, y1, x2, y2) {
-            const height = y2 - y1,
-                width = x2 - x1;
-            return Math.hypot(width, height);
-        }
-        function getScale(distanceStart, distance) {
-            return distance / distanceStart;
-        }
-        function callback(gestureType, params) {
-            if (touchHistory.length > 0) {
-                if (watching[gestureType]) watching[gestureType].apply(this, params);
+        } else if (angleAbsolute - this.#previousAngle >= 180) {
+            if (this.#revs === 0 && !this.#negativeRev) {
+                this.#negativeRev = true;
+            } else {
+                this.#revs--;
             }
         }
-        function getAngle(sX, sY, eX, eY) {
-            const dX = eX - sX;
-            const dY = eY - sY;
-            const radians = Math.atan2(dY, dX);
-            let angle = radians * 180 / Math.PI + 90;
-            if (angle < 0) angle += 360;
-            if (angle > 360) angle -= 360;
-            return angle;
-        }
-		function getDirection(startX, startY, x, y) {
 
-			const angle = getAngle(startX, startY, x, y);
+        this.#angleRelative = (this.#negativeRev || this.#revs < 0)
+            ? (360 * this.#revs + angleAbsolute) - 360
+            : 360 * this.#revs + angleAbsolute;
 
-			if (angle >= 315 || angle < 45) {
-				return 'top';
-			}
-			if (angle >= 45 && angle < 135) {
-				return 'right';
-			}
-			if (angle >= 135 && angle < 225) {
-				return 'bottom';
-			}
-			if (angle >= 225 && angle < 315) {
-				return 'left';
-			}
-        }
-
+        this.#previousAngle = angleAbsolute;
     }
 
 }
