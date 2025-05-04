@@ -5,6 +5,8 @@ const CONSTANTS = {
     FLICK_THRESHOLD: 0.75, // drag speed
 };
 
+const ELEMENT_STATE = new WeakMap();
+
 export class TheFinger {
     // Private fields
     #element;
@@ -29,7 +31,8 @@ export class TheFinger {
     #distanceStart;
     #watching = {};
     #preventDefaults = {};
-    #touchHistory = [];
+    #touchHistory = new Map();
+    #touchSequence = [];
     #initialDirection;
 
     // Public gesture handlers - the single source of truth
@@ -108,26 +111,26 @@ export class TheFinger {
                 };
             },
             end: () => {
-                if (!this.#moving || this.#touchHistory.length === 0) return null;
+                if (!this.#moving || this.#touchHistory.size === 0) return null;
 
-                const touchHistory = this.#touchHistory[0];
-                if (!touchHistory?.x?.length || !touchHistory?.y?.length) return null;
+                const history = this.#touchHistory.values().next().value;
+                if (!history?.x?.length || !history?.y?.length) return null;
 
-                const xArray = touchHistory.x;
-                const yArray = touchHistory.y;
+                const x_arr = history.x;
+                const y_arr = history.y;
 
-                this.#endX = xArray[xArray.length - 1];
-                this.#endY = yArray[yArray.length - 1];
+                this.#endX = x_arr[x_arr.length - 1];
+                this.#endY = y_arr[y_arr.length - 1];
 
                 this.#currentTouch.endX = this.#endX;
                 this.#currentTouch.endY = this.#endY;
                 this.#currentTouch.speed = this._getSpeed();
                 this.#currentTouch.initial_direction = this.#initialDirection;
 
-                if (xArray.length > 1 && yArray.length > 1) {
+                if (x_arr.length > 1 && y_arr.length > 1) {
                     this.#currentTouch.final_direction = this._getDirection(
-                        xArray[xArray.length - 2],
-                        yArray[yArray.length - 2],
+                        x_arr[x_arr.length - 2],
+                        y_arr[y_arr.length - 2],
                         this.#currentTouch.endX,
                         this.#currentTouch.endY
                     );
@@ -234,7 +237,7 @@ export class TheFinger {
             end: () => {
                 if (this.#gestureType !== 'pinch-spread' ||
                     !this.#moving ||
-                    this.#touchHistory.length === 0) return null;
+                    this.#touchHistory.size === 0) return null;
 
                 this.#currentTouch.end = true;
 
@@ -261,6 +264,7 @@ export class TheFinger {
         element.addEventListener('touchstart', this._detectGesture);
         element.addEventListener('touchmove', this._detectGesture);
         element.addEventListener('touchend', this._detectGesture);
+        ELEMENT_STATE.set(element, {});
     }
 
     off(element) {
@@ -268,6 +272,7 @@ export class TheFinger {
         element.removeEventListener('touchstart', this._detectGesture);
         element.removeEventListener('touchmove', this._detectGesture);
         element.removeEventListener('touchend', this._detectGesture);
+        ELEMENT_STATE.delete(element);
     }
 
     track(gesture, callback, settings) {
@@ -323,9 +328,11 @@ export class TheFinger {
         this._createTouches(touches, timestamp);
 
         // Run all gesture start handlers
-        Object.values(this.gestures).forEach(gesture => {
+        const gestureValues = Object.values(this.gestures);
+        for (let i = 0; i < gestureValues.length; i++) {
+            const gesture = gestureValues[i];
             if (gesture.start) gesture.start(touches, timestamp);
-        });
+        }
     }
 
     _handleTouchMove(touches, timestamp) {
@@ -333,7 +340,9 @@ export class TheFinger {
         this._saveToHistory(touches, timestamp);
 
         // Run all gesture move handlers
-        Object.values(this.gestures).forEach(gesture => {
+        const gestureValues = Object.values(this.gestures);
+        for (let i = 0; i < gestureValues.length; i++) {
+            const gesture = gestureValues[i];
             if (gesture.move) {
                 const result = gesture.move(touches, timestamp);
                 if (result) {
@@ -341,12 +350,14 @@ export class TheFinger {
                     this._executeCallback(result.type, [result.data, this.#touchHistory]);
                 }
             }
-        });
+        }
     }
 
     _handleTouchEnd(touches, timestamp) {
         // Run all gesture end handlers
-        Object.values(this.gestures).forEach(gesture => {
+        const gestureValues = Object.values(this.gestures);
+        for (let i = 0; i < gestureValues.length; i++) {
+            const gesture = gestureValues[i];
             if (gesture.end) {
                 const result = gesture.end(touches, timestamp);
                 if (result) {
@@ -354,10 +365,11 @@ export class TheFinger {
                     this._executeCallback(result.type, [result.data, this.#touchHistory]);
                 }
             }
-        });
+        }
 
         if (touches.length === 0) {
-            this.#touchHistory = [];
+            this.#touchHistory = new Map();
+            this.#touchSequence = [];
         }
 
         this.#moving = false;
@@ -387,28 +399,32 @@ export class TheFinger {
     _createTouches(touches, timestamp) {
         this.#areaBox = this.#element.getBoundingClientRect();
 
-        for (const key of Object.keys(touches)) {
-            if (!this.#touchHistory[key]) {
-                const touch = touches[key];
-                this.#startX = touch.clientX - this.#areaBox.left;
-                this.#startY = touch.clientY - this.#areaBox.top;
-                this.#touchHistory.push(touch);
-                this.#touchHistory[key] = {
-                    x: [this.#startX],
-                    y: [this.#startY],
+        for (const touch of touches) {
+            const id = touch.identifier;
+
+            if (!this.#touchHistory.has(id)) {
+                const startX = touch.clientX - this.#areaBox.left;
+                const startY = touch.clientY - this.#areaBox.top;
+
+                this.#startX = startX;
+                this.#startY = startY;
+
+                this.#touchHistory.set(id, {
+                    x: [startX],
+                    y: [startY],
                     t: [timestamp]
-                };
+                });
+                this.#touchSequence.push(id);           // <── NEW
             }
         }
     }
 
     _saveToHistory(touches, timestamp) {
-        if (this.#touchHistory.length === 0) return;
+        if (this.#touchHistory.size === 0) return;
 
-        for (const key of Object.keys(touches)) {
-            const history = this.#touchHistory[key];
+        for (const touch of touches) {
+            const history = this.#touchHistory.get(touch.identifier);
             if (history) {
-                const touch = touches[key];
                 history.x.push(touch.clientX - this.#areaBox.left);
                 history.y.push(touch.clientY - this.#areaBox.top);
                 history.t.push(timestamp);
@@ -417,40 +433,37 @@ export class TheFinger {
     }
 
     _getStepSpeed() {
-        let xDelta = 0;
-        this.#touchHistory.forEach(touch => {
-            if (touch.x?.length > 1) {
-                const xArr = touch.x;
-                xDelta = Math.abs(xArr[xArr.length - 1] - xArr[xArr.length - 2]);
+        let x_delta = 0;
+
+        const length = this.#touchSequence.length;
+        for (let i = 0; i < length; i++) {
+            const id = this.#touchSequence[i];
+            const history = this.#touchHistory.get(id);
+            if (history && history.x.length > 1) {
+                const xs = history.x;
+                x_delta = Math.abs(xs[xs.length - 1] - xs[xs.length - 2]);
+                break; // Exit after first valid touch for step speed
             }
-        });
-        return xDelta;
+        }
+
+        return x_delta;
     }
 
     _getSpeed() {
-        const touchHistory = this.#touchHistory[0];
-        if (!touchHistory?.x?.length || !touchHistory?.y?.length || !touchHistory?.t?.length) {
-            return 0;
-        }
+        const firstId = this.#touchSequence[0];         // earliest-started finger
+        const history = this.#touchHistory.get(firstId);
+        if (!history?.x?.length || !history?.y?.length || !history?.t?.length) return 0;
 
-        const historySize = Math.min(5, touchHistory.x.length);
-        const tailArrayX = touchHistory.x.slice(-historySize);
-        const tailArrayY = touchHistory.y.slice(-historySize);
-        const tailArrayT = touchHistory.t.slice(-historySize);
+        const n = Math.min(5, history.x.length);
+        const xs = history.x.slice(-n);
+        const ys = history.y.slice(-n);
+        const ts = history.t.slice(-n);
 
-        if (tailArrayT.length < 2) return 0;
-
-        const time = tailArrayT[tailArrayT.length - 1] - tailArrayT[0];
+        const time = ts[ts.length - 1] - ts[0];
         if (time === 0) return 0;
 
-        const distance = this._getDistance(
-            tailArrayX[0],
-            tailArrayY[0],
-            tailArrayX[tailArrayX.length - 1],
-            tailArrayY[tailArrayY.length - 1]
-        );
-
-        return distance / time;
+        const dist = this._getDistance(xs[0], ys[0], xs[xs.length - 1], ys[ys.length - 1]);
+        return dist / time;
     }
 
     _getDistance(x1, y1, x2, y2) {
@@ -462,7 +475,7 @@ export class TheFinger {
     }
 
     _executeCallback(gestureType, params) {
-        if (this.#touchHistory.length > 0 && this.#watching[gestureType]) {
+        if (this.#touchHistory.size > 0 && this.#watching[gestureType]) {
             this.#watching[gestureType].apply(this, params);
         }
     }
