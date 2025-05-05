@@ -101,23 +101,8 @@ export class TheFinger {
                 const x = touch.clientX - this.#areaBox.left;
                 const y = touch.clientY - this.#areaBox.top;
 
-                // Get touch history for the current touch
-                const touchId = touches[0].identifier;
-                const history = this.#touchHistory.get(touchId);
-
-                // Get previous x, y coordinates (5th to last in history)
-                let prevX = this.#startX;
-                let prevY = this.#startY;
-                if (history && history.x.length > 1 && history.y.length > 1) {
-                    if (history.x.length >= 5) {
-                        prevX = history.x[history.x.length - 5];
-                        prevY = history.y[history.y.length - 5];
-                    } else {
-                        // If we don't have 5 records yet, use the earliest record
-                        prevX = history.x[0];
-                        prevY = history.y[0];
-                    }
-                }
+                // Get previous x, y coordinates using helper method
+                const { prevX, prevY } = this._getPreviousCoordinates(touches, this.#startX, this.#startY);
 
                 this.#currentTouch = {
                     x,
@@ -186,54 +171,8 @@ export class TheFinger {
 
                 const { x, y, touchesArr } = this._getAveragePosition(touches);
 
-                // Get previous x, y coordinates (5th to last in history)
-                let prevX = this.#startX;
-                let prevY = this.#startY;
-
-                // Use the first touch's history as a reference
-                const touchId = touches[0].identifier;
-                const history = this.#touchHistory.get(touchId);
-
-                if (history && history.x.length > 1 && history.y.length > 1) {
-                    if (history.x.length >= 5) {
-                        // Calculate average position from 5th-to-last points
-                        let sumPrevX = 0, sumPrevY = 0;
-                        let count = 0;
-
-                        // Sum up 5th-to-last positions from each touch history
-                        for (const touch of touches) {
-                            const h = this.#touchHistory.get(touch.identifier);
-                            if (h && h.x.length >= 5 && h.y.length >= 5) {
-                                sumPrevX += h.x[h.x.length - 5];
-                                sumPrevY += h.y[h.y.length - 5];
-                                count++;
-                            }
-                        }
-
-                        if (count > 0) {
-                            prevX = sumPrevX / count;
-                            prevY = sumPrevY / count;
-                        }
-                    } else {
-                        // Use earliest record if we don't have 5 yet
-                        let sumPrevX = 0, sumPrevY = 0;
-                        let count = 0;
-
-                        for (const touch of touches) {
-                            const h = this.#touchHistory.get(touch.identifier);
-                            if (h && h.x.length > 0 && h.y.length > 0) {
-                                sumPrevX += h.x[0];
-                                sumPrevY += h.y[0];
-                                count++;
-                            }
-                        }
-
-                        if (count > 0) {
-                            prevX = sumPrevX / count;
-                            prevY = sumPrevY / count;
-                        }
-                    }
-                }
+                // Get previous x, y coordinates using helper method
+                const { prevX, prevY } = this._getPreviousCoordinates(touches, this.#startX, this.#startY);
 
                 this.#currentTouch = {
                     touches: touchesArr,
@@ -725,4 +664,66 @@ export class TheFinger {
         this.#previousAngle = angleAbsolute;
     }
 
+    _getPreviousCoordinates(touches, defaultX, defaultY) {
+        // Default to start coordinates if no better option
+        let prevX = defaultX;
+        let prevY = defaultY;
+
+        if (touches.length > 1) { // If we have multiple touches
+            let sumPrevX = 0, sumPrevY = 0;
+            let count = 0;
+
+            // Check if we have enough history (5 points)
+            for (const touch of touches) {
+                const h = this.#touchHistory.get(touch.identifier);
+                if (h && h.x.length >= 5 && h.y.length >= 5) {
+                    sumPrevX += h.x[h.x.length - 5];
+                    sumPrevY += h.y[h.y.length - 5];
+                    count++;
+                }
+            }
+
+            // If we have multiple touches with enough history, use their average
+            if (count > 0) {
+                prevX = sumPrevX / count;
+                prevY = sumPrevY / count;
+                return { prevX, prevY };
+            }
+
+            // If not enough history, use earliest records
+            sumPrevX = 0;
+            sumPrevY = 0;
+            count = 0;
+
+            for (const touch of touches) {
+                const h = this.#touchHistory.get(touch.identifier);
+                if (h && h.x.length > 0 && h.y.length > 0) {
+                    sumPrevX += h.x[0];
+                    sumPrevY += h.y[0];
+                    count++;
+                }
+            }
+
+            if (count > 0) {
+                prevX = sumPrevX / count;
+                prevY = sumPrevY / count;
+            }
+        } else if (touches.length === 1) { // If we have a single touch
+            const touchId = touches[0].identifier;
+            const history = this.#touchHistory.get(touchId);
+
+            if (history && history.x.length > 1 && history.y.length > 1) {
+                if (history.x.length >= 5) {
+                    prevX = history.x[history.x.length - 5];
+                    prevY = history.y[history.y.length - 5];
+                } else {
+                    // If not enough history, use earliest record
+                    prevX = history.x[0];
+                    prevY = history.y[0];
+                }
+            }
+        }
+
+        return { prevX, prevY };
+    }
 }
