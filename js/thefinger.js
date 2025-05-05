@@ -95,7 +95,7 @@ export class TheFinger {
         drag: {
             start: () => { },
             move: (touches) => {
-                if (touches.length !== 1 || this.#gestureType === 'pinch-spread') return null;
+                if (touches.length !== 1) return null;
 
                 const touch = touches[0];
                 const x = touch.clientX - this.#areaBox.left;
@@ -140,7 +140,7 @@ export class TheFinger {
                 };
             },
             end: () => {
-                if (!this.#moving || this.#touchHistory.size === 0) return null;
+                if (!this.#moving || this.#touchHistory.size === 0 || this.#gestureType !== 'drag') return null;
 
                 const history = this.#touchHistory.values().next().value;
                 if (!history?.x?.length || !history?.y?.length) return null;
@@ -176,7 +176,7 @@ export class TheFinger {
 
         pan: {
             start: (touches) => {
-                if (touches.length < 2) return;
+                if (touches.length < 2) return null;
                 const { x, y } = this._getAveragePosition(touches);
                 this.#startX = x;
                 this.#startY = y;
@@ -186,6 +186,55 @@ export class TheFinger {
 
                 const { x, y, touchesArr } = this._getAveragePosition(touches);
 
+                // Get previous x, y coordinates (5th to last in history)
+                let prevX = this.#startX;
+                let prevY = this.#startY;
+
+                // Use the first touch's history as a reference
+                const touchId = touches[0].identifier;
+                const history = this.#touchHistory.get(touchId);
+
+                if (history && history.x.length > 1 && history.y.length > 1) {
+                    if (history.x.length >= 5) {
+                        // Calculate average position from 5th-to-last points
+                        let sumPrevX = 0, sumPrevY = 0;
+                        let count = 0;
+
+                        // Sum up 5th-to-last positions from each touch history
+                        for (const touch of touches) {
+                            const h = this.#touchHistory.get(touch.identifier);
+                            if (h && h.x.length >= 5 && h.y.length >= 5) {
+                                sumPrevX += h.x[h.x.length - 5];
+                                sumPrevY += h.y[h.y.length - 5];
+                                count++;
+                            }
+                        }
+
+                        if (count > 0) {
+                            prevX = sumPrevX / count;
+                            prevY = sumPrevY / count;
+                        }
+                    } else {
+                        // Use earliest record if we don't have 5 yet
+                        let sumPrevX = 0, sumPrevY = 0;
+                        let count = 0;
+
+                        for (const touch of touches) {
+                            const h = this.#touchHistory.get(touch.identifier);
+                            if (h && h.x.length > 0 && h.y.length > 0) {
+                                sumPrevX += h.x[0];
+                                sumPrevY += h.y[0];
+                                count++;
+                            }
+                        }
+
+                        if (count > 0) {
+                            prevX = sumPrevX / count;
+                            prevY = sumPrevY / count;
+                        }
+                    }
+                }
+
                 this.#currentTouch = {
                     touches: touchesArr,
                     x,
@@ -194,7 +243,7 @@ export class TheFinger {
                     startY: this.#startY,
                     step: this._getStepSpeed(),
                     speed: this._getSpeed(),
-                    angle: this._getAngle(this.#startX, this.#startY, x, y)
+                    angle: this._getAngle(prevX, prevY, x, y)
                 };
 
                 if (!this.#initialDirection) {
@@ -211,7 +260,7 @@ export class TheFinger {
                     this.#touchHistory.size === 0
                 ) return null;
 
-                // build touches[] from the last point of every finger’s history
+                // build touches[] from the last point of every finger's history
                 const touchesFinal = [...this.#touchHistory.values()].map(h => ({
                     x: h.x[h.x.length - 1],
                     y: h.y[h.y.length - 1]
@@ -220,6 +269,27 @@ export class TheFinger {
                 const len = touchesFinal.length;
                 const x = touchesFinal.reduce((s, t) => s + t.x, 0) / len;
                 const y = touchesFinal.reduce((s, t) => s + t.y, 0) / len;
+
+                // Get previous position for angle calculation
+                let prevX = this.#currentTouch.x || this.#startX;
+                let prevY = this.#currentTouch.y || this.#startY;
+
+                // Get average of 5th-to-last positions if available
+                let sumPrevX = 0, sumPrevY = 0;
+                let count = 0;
+
+                for (const [_, history] of this.#touchHistory.entries()) {
+                    if (history.x.length >= 5 && history.y.length >= 5) {
+                        sumPrevX += history.x[history.x.length - 5];
+                        sumPrevY += history.y[history.y.length - 5];
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    prevX = sumPrevX / count;
+                    prevY = sumPrevY / count;
+                }
 
                 const speed = this._getSpeed();
 
@@ -231,7 +301,7 @@ export class TheFinger {
                     startY: this.#startY,
                     step: this._getStepSpeed(),
                     speed,
-                    angle: this._getAngle(this.#startX, this.#startY, x, y),
+                    angle: this._getAngle(prevX, prevY, x, y),
                     endX: x,
                     endY: y,
                     initial_direction: this.#initialDirection,
