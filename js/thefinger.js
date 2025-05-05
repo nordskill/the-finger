@@ -101,6 +101,24 @@ export class TheFinger {
                 const x = touch.clientX - this.#areaBox.left;
                 const y = touch.clientY - this.#areaBox.top;
 
+                // Get touch history for the current touch
+                const touchId = touches[0].identifier;
+                const history = this.#touchHistory.get(touchId);
+
+                // Get previous x, y coordinates (5th to last in history)
+                let prevX = this.#startX;
+                let prevY = this.#startY;
+                if (history && history.x.length > 1 && history.y.length > 1) {
+                    if (history.x.length >= 5) {
+                        prevX = history.x[history.x.length - 5];
+                        prevY = history.y[history.y.length - 5];
+                    } else {
+                        // If we don't have 5 records yet, use the earliest record
+                        prevX = history.x[0];
+                        prevY = history.y[0];
+                    }
+                }
+
                 this.#currentTouch = {
                     x,
                     y,
@@ -108,7 +126,7 @@ export class TheFinger {
                     startY: this.#startY,
                     step: this._getStepSpeed(),
                     speed: this._getSpeed(),
-                    angle: this._getAngle(this.#startX, this.#startY, x, y)
+                    angle: this._getAngle(prevX, prevY, x, y)
                 };
 
                 if (!this.#initialDirection) {
@@ -588,9 +606,9 @@ export class TheFinger {
         }
     }
 
-    _getAngle(sX, sY, eX, eY) {
-        const dX = eX - sX;
-        const dY = eY - sY;
+    _getAngle(prevX, prevY, currX, currY) {
+        const dX = currX - prevX;
+        const dY = currY - prevY;
         const radians = Math.atan2(dY, dX);
         let angle = radians * 180 / Math.PI + 90;
 
@@ -600,8 +618,8 @@ export class TheFinger {
         return angle;
     }
 
-    _getDirection(startX, startY, x, y) {
-        const angle = this._getAngle(startX, startY, x, y);
+    _getDirection(prevX, prevY, x, y) {
+        const angle = this._getAngle(prevX, prevY, x, y);
 
         if (angle >= 315 || angle < 45) return 'top';
         if (angle >= 45 && angle < 135) return 'right';
