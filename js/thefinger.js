@@ -353,6 +353,48 @@ export class TheFinger {
                     data: this.#currentTouch
                 };
             }
+        },
+
+        'two-finger-tap': {
+            start: () => { },
+            move: () => {
+                clearTimeout(this.#pressTimer);
+            },
+            end: (touches, timestamp) => {
+                if (!this.#moving &&
+                    timestamp - this.#startTime < CONSTANTS.PRESS_TIME &&
+                    this.#touchSequence.length === 2) {
+
+                    // Get the positions of both touches
+                    const touchPositions = [...this.#touchHistory.values()].map(h => ({
+                        x: h.x[0],
+                        y: h.y[0]
+                    }));
+
+                    // Calculate center point between the two fingers
+                    const centerX = (touchPositions[0].x + touchPositions[1].x) / 2;
+                    const centerY = (touchPositions[0].y + touchPositions[1].y) / 2;
+
+                    // Calculate distance between the two fingers
+                    const distance = this._getDistance(
+                        touchPositions[0].x,
+                        touchPositions[0].y,
+                        touchPositions[1].x,
+                        touchPositions[1].y
+                    );
+
+                    return {
+                        type: 'two-finger-tap',
+                        data: {
+                            touches: touchPositions,
+                            x: centerX,
+                            y: centerY,
+                            distance
+                        }
+                    };
+                }
+                return null;
+            }
         }
     };
 
