@@ -36,6 +36,19 @@ export class TheFinger {
 
     // Public gesture handlers - the single source of truth
     gestures = {
+
+        press: {
+            start: () => {
+                this.#gestureType = 'press';
+                return {
+                    type: 'press',
+                    data: { x: this.#startX, y: this.#startY }
+                };
+            },
+            move: () => { },
+            end: () => { }
+        },
+
         tap: {
             start: () => { },
             move: () => {
@@ -62,16 +75,35 @@ export class TheFinger {
             }
         },
 
-        press: {
-            start: () => {
-                this.#gestureType = 'press';
-                return {
-                    type: 'press',
-                    data: { x: this.#startX, y: this.#startY }
-                };
-            },
+        'two-finger-tap': {
+            start: () => { },
             move: () => { },
-            end: () => { }
+            end: (touches, timestamp) => {
+                if (this.#touchSequence.length === 2 && !this.#moving &&
+                    timestamp - this.#startTime < CONSTANTS.PRESS_TIME) {
+                    // Get the positions of both touch points
+                    const touchPositions = [...this.#touchHistory.values()].map(h => ({
+                        x: h.x[0],
+                        y: h.y[0]
+                    }));
+
+                    if (touchPositions.length === 2) {
+                        // Calculate center point between the two touches
+                        const x = (touchPositions[0].x + touchPositions[1].x) / 2;
+                        const y = (touchPositions[0].y + touchPositions[1].y) / 2;
+
+                        return {
+                            type: 'two-finger-tap',
+                            data: {
+                                x,
+                                y,
+                                touches: touchPositions
+                            }
+                        };
+                    }
+                }
+                return null;
+            }
         },
 
         'long-press': {
@@ -353,48 +385,6 @@ export class TheFinger {
                     data: this.#currentTouch
                 };
             }
-        },
-
-        'two-finger-tap': {
-            start: () => { },
-            move: () => {
-                clearTimeout(this.#pressTimer);
-            },
-            end: (touches, timestamp) => {
-                if (!this.#moving &&
-                    timestamp - this.#startTime < CONSTANTS.PRESS_TIME &&
-                    this.#touchSequence.length === 2) {
-
-                    // Get the positions of both touches
-                    const touchPositions = [...this.#touchHistory.values()].map(h => ({
-                        x: h.x[0],
-                        y: h.y[0]
-                    }));
-
-                    // Calculate center point between the two fingers
-                    const centerX = (touchPositions[0].x + touchPositions[1].x) / 2;
-                    const centerY = (touchPositions[0].y + touchPositions[1].y) / 2;
-
-                    // Calculate distance between the two fingers
-                    const distance = this._getDistance(
-                        touchPositions[0].x,
-                        touchPositions[0].y,
-                        touchPositions[1].x,
-                        touchPositions[1].y
-                    );
-
-                    return {
-                        type: 'two-finger-tap',
-                        data: {
-                            touches: touchPositions,
-                            x: centerX,
-                            y: centerY,
-                            distance
-                        }
-                    };
-                }
-                return null;
-            }
         }
     };
 
@@ -651,12 +641,6 @@ export class TheFinger {
         return distance / distanceStart;
     }
 
-    _executeCallback(gestureType, params) {
-        if (this.#touchHistory.size > 0 && this.#watching[gestureType]) {
-            this.#watching[gestureType].apply(this, params);
-        }
-    }
-
     _getAngle(prevX, prevY, currX, currY) {
         const dX = currX - prevX;
         const dY = currY - prevY;
@@ -767,5 +751,11 @@ export class TheFinger {
         }
 
         return { prevX, prevY };
+    }
+
+    _executeCallback(gestureType, params) {
+        if (this.#touchHistory.size > 0 && this.#watching[gestureType]) {
+            this.#watching[gestureType].apply(this, params);
+        }
     }
 }
