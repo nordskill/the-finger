@@ -34,10 +34,9 @@ export class TheFinger {
     #touchSequence = [];
     #initialDirection;
 
-    // Public gesture handlers - the single source of truth
     gestures = {
 
-        press: {
+        'press': {
             start: () => {
                 this.#gestureType = 'press';
                 return {
@@ -49,7 +48,7 @@ export class TheFinger {
             end: () => { }
         },
 
-        tap: {
+        'tap': {
             start: () => { },
             move: () => {
                 clearTimeout(this.#pressTimer);
@@ -124,7 +123,7 @@ export class TheFinger {
             }
         },
 
-        drag: {
+        'drag': {
             start: () => { },
             move: (touches) => {
                 if (touches.length !== 1) return null;
@@ -191,7 +190,7 @@ export class TheFinger {
             }
         },
 
-        pan: {
+        'pan': {
             start: (touches) => {
                 if (touches.length < 2) return null;
                 const { x, y } = this._getAveragePosition(touches);
@@ -284,7 +283,7 @@ export class TheFinger {
             }
         },
 
-        rotate: {
+        'rotate': {
             start: (touches) => {
                 if (touches.length !== 2) return;
 
