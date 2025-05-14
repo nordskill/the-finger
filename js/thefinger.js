@@ -2,6 +2,7 @@ const CONSTANTS = {
     PRESS_TIME: 350, // ms
     DOUBLE_TAP_INTERVAL: 250, // ms
     FLICK_THRESHOLD: 0.75, // drag speed
+    DOUBLE_TAP_DRAG_THRESHOLD: 5, // px
 };
 
 const ELEMENT_STATE = new WeakMap();
@@ -33,6 +34,8 @@ export class TheFinger {
     #touchHistory = new Map();
     #touchSequence = [];
     #initialDirection;
+    #doubleTapDragActive = false;
+    #doubleTapDragStart = null;
 
     gestures = {
 
@@ -384,7 +387,56 @@ export class TheFinger {
                     data: this.#currentTouch
                 };
             }
-        }
+        },
+
+        'double-tap-and-drag': {
+            start: (touches, timestamp) => {
+                if (touches.length !== 1) return;
+                if (
+                    this.#tapReleaseTime &&
+                    timestamp < this.#tapReleaseTime + CONSTANTS.DOUBLE_TAP_INTERVAL + CONSTANTS.PRESS_TIME
+                ) {
+                    this.#doubleTapDragActive = true;
+                    const touch = touches[0];
+                    this.#doubleTapDragStart = {
+                        x: touch.clientX - this.#areaBox.left,
+                        y: touch.clientY - this.#areaBox.top
+                    };
+                } else {
+                    this.#doubleTapDragActive = false;
+                }
+            },
+            move: (touches, timestamp) => {
+                if (!this.#doubleTapDragActive || touches.length !== 1) return null;
+                const touch = touches[0];
+                const x = touch.clientX - this.#areaBox.left;
+                const y = touch.clientY - this.#areaBox.top;
+                const dx = x - this.#doubleTapDragStart.x;
+                const dy = y - this.#doubleTapDragStart.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > CONSTANTS.DOUBLE_TAP_DRAG_THRESHOLD) {
+                    this.#gestureType = 'double-tap-and-drag';
+                    this.#currentTouch = {
+                        x,
+                        y,
+                        startX: this.#doubleTapDragStart.x,
+                        startY: this.#doubleTapDragStart.y,
+                        dx,
+                        dy,
+                        dist
+                    };
+                    return {
+                        type: 'double-tap-and-drag',
+                        data: this.#currentTouch
+                    };
+                }
+                return null;
+            },
+            end: () => {
+                this.#doubleTapDragActive = false;
+                this.#doubleTapDragStart = null;
+            }
+        },
     };
 
     constructor(element, settings = {}) {

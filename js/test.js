@@ -18,8 +18,18 @@ const gestureType2 = document.querySelector('#gesture_type_2');
 // finger.track('drag', showGestureDetails);
 // finger.track('pan', showGestureDetails);
 // finger.track('two-finger-tap', showGestureDetails);
+finger.track('double-tap-and-drag', showGestureDetails);
 
 function showGestureDetails(gesture) {
+    let output = touchArea.width;
+    const pixelRatio = window.devicePixelRatio || 1;
+
+    if (gesture.startX <= 10
+        || gesture.startY <= 10
+        || gesture.startX >= (touchArea.width / pixelRatio) - 10
+        || gesture.startY >= (touchArea.height / pixelRatio) - 10) {
+        output = 'Gesture started outside the touch area.';
+    }
     gestureType.innerText = JSON.stringify(gesture, null, 2);
     // triangle.style.transform = `rotate(${gesture.angle}deg)`;
     // triangle.style.left = `${gesture.x}px`;
