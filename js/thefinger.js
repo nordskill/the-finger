@@ -579,7 +579,7 @@ export class TheFinger {
         }
 
         const angle = this.#currentTouch.angle;
-        if (!angle) return;
+        if (angle == null || Number.isNaN(angle)) return;
 
         if (this.#preventDefaults[this.#gestureType] === 'horizontal') {
             if ((angle > 45 && angle < 135) || (angle > 225 && angle < 315)) {
