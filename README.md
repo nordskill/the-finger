@@ -11,7 +11,10 @@ The recognizable gestures are:
 - drag
 - flick
 - rotation
-- pinch & spread
+- pinch-spread
+- pan
+- two-finger-tap
+- double-tap-and-drag
 
 ## Basic Usage
 

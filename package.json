@@ -1,7 +1,7 @@
 {
   "name": "the-finger",
   "version": "1.0.0",
-  "description": "JavaScript library to detect touch gestures:\r - tap\r - double tap\r - long press\r - drag\r - flick\r - rotate\r - pinch\r - spread",
+  "description": "JavaScript library to detect touch gestures - tap, double tap, long press, drag, flick, rotate, pinch, spread",
   "main": "index.js",
   "scripts": {
     "start": "browser-sync start --server --files \"./**/*\" --no-ui"
