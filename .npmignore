@@ -1,0 +1,8 @@
+# Dev files
+index.html
+js/test.js
+js/visualizer.js
+package-lock.json
+
+# System files
+.DS_Store 
