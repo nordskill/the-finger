@@ -812,4 +812,4 @@ class TheFinger {
 }
 
 // Add default export for easier importing
-export default TheFinger;   
+export default TheFinger;
