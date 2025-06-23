@@ -1,8 +1,19 @@
-# Dev files
+# Development files
+dev/
 index.html
-js/test.js
-js/visualizer.js
-package-lock.json
+test-browser.html
+test-npm-install.js
+*.tgz
 
-# System files
+# Config files
+vite.config.js
+.gitignore
+
+# Source control
+.git/
+
+# Dependencies
+node_modules/
+
+# OS files
 .DS_Store 

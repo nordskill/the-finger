@@ -1,4 +1,4 @@
-import { TheFinger } from './thefinger.js';
+import { TheFinger } from '../src/thefinger.js';
 
 const touchArea = document.querySelector('canvas');
 const finger = new TheFinger(touchArea, {

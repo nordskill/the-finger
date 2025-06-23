@@ -2,66 +2,66 @@
 <html>
 
 <head>
-  <title>SGE Map Preview</title>
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <style media="screen">
-    body {
-      margin: 0;
-      background-color: #666;
-    }
+    <title>The Finger - Demo</title>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <style media="screen">
+        body {
+            margin: 0;
+            background-color: #666;
+        }
 
-    #wrapper {
-      overflow: hidden;
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+        #wrapper {
+            overflow: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-    #gesture_type,
-    #gesture_type_2 {
-      color: #fff;
-      font-weight: 700;
-    }
+        #gesture_type,
+        #gesture_type_2 {
+            color: #fff;
+            font-weight: 700;
+        }
 
-    canvas {
-      box-shadow: inset 0 0 10px lime;
-      width: 300px;
-      height: 300px;
-      border-radius: 6px;
-    }
+        canvas {
+            box-shadow: inset 0 0 10px lime;
+            width: 300px;
+            height: 300px;
+            border-radius: 6px;
+        }
 
-    #triangle {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1;
-      width: 0;
-      height: 0;
-      border-left: 20px solid transparent;
-      border-right: 20px solid transparent;
-      border-bottom: 50px solid #f00;
-    }
-  </style>
+        #triangle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 50px solid #f00;
+        }
+    </style>
 </head>
 
 <body>
-  <div>
-    <code><pre id="gesture_type"></pre></code>
-    <code><pre id="gesture_type_2"></pre></code>
-  </div>
-  <div id="wrapper">
-    <div id="triangle"></div>
-    <canvas></canvas>
-  </div>
-  <script type="module" src="./js/test.js"></script>
-  <script src="./js/visualizer.js"></script>
+    <div>
+        <code><pre id="gesture_type"></pre></code>
+        <code><pre id="gesture_type_2"></pre></code>
+    </div>
+    <div id="wrapper">
+        <div id="triangle"></div>
+        <canvas></canvas>
+    </div>
+    <script type="module" src="./dev/test.js"></script>
+    <script src="./dev/visualizer.js"></script>
 </body>
 
 </html>

@@ -2,14 +2,27 @@
   "name": "the-finger",
   "version": "1.0.0",
   "description": "JavaScript library to detect touch gestures: tap, double tap, press, long press, drag, flick, rotate, pinch, spread, pan, two-finger.",
-  "main": "js/thefinger.js",
+  "main": "./dist/thefinger.umd.js",
+  "module": "./dist/thefinger.es.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/thefinger.es.js",
+      "require": "./dist/thefinger.umd.js"
+    }
+  },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
-    "js/thefinger.js",
-    "README.md"
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
@@ -37,5 +50,8 @@
   "bugs": {
     "url": "https://github.com/nordskill/the-finger/issues"
   },
-  "homepage": "https://thefinger.dev"
+  "homepage": "https://thefinger.dev",
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
 }
