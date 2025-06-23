@@ -25,7 +25,7 @@ npm install the-finger
 
 ### ES Module
 ```javascript
-import { TheFinger } from 'the-finger';
+import TheFinger from 'the-finger';
 
 const element = document.getElementById('target');
 const finger = new TheFinger(element);
