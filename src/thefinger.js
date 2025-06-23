@@ -7,7 +7,7 @@ const CONSTANTS = {
 
 const ELEMENT_STATE = new WeakMap();
 
-export class TheFinger {
+export default class TheFinger {
 
     #element;
     #settings;
