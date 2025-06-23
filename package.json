@@ -1,6 +1,6 @@
 {
   "name": "the-finger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "JavaScript library to detect touch gestures: tap, double tap, press, long press, drag, flick, rotate, pinch, spread, pan, two-finger.",
   "main": "./dist/thefinger.umd.js",
   "module": "./dist/thefinger.es.js",
