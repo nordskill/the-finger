@@ -113,6 +113,38 @@ Each gesture callback receives:
 - `dist/thefinger.umd.js` - UMD module
 - `dist/thefinger.min.js` - Minified IIFE for browsers
 
+## Testing
+
+This library includes integration tests that simulate natural finger movements to verify gesture detection in a real environment using `index.html`, `dev/test.js`, and `dev/visualizer.js`.
+
+### Running Tests
+
+1. Start the development server (assumes Vite):
+
+   ```bash
+   npm start
+   ```
+
+2. Open the page in your browser with the `?test` query parameter, e.g.:
+
+   http://localhost:5173/?test
+
+3. Check the browser console for test results, which will log PASS or FAIL for each gesture along with detection details.
+
+Tests run sequentially for all supported gestures.
+
+### Creating Future Tests
+
+Tests are implemented in `dev/test.js`. To add tests for new gestures or modify existing ones:
+
+- Add the gesture name to the `gestures` array in `runIntegrationTests()`.
+- Implement a new simulation function (e.g., `simulateNewGesture(cx, cy, target)`) that dispatches a sequence of `TouchEvent`s to mimic the gesture's natural finger movements.
+- Add a case for the new gesture in the `simulateGesture()` switch statement to call your new function.
+
+Simulations use programmatic `Touch` objects and `TouchEvent` dispatching to replicate real touch interactions, including timings and position changes for realism.
+
+For example, to test a new 'swirl' gesture, you would define `simulateSwirl()` with looped touch moves in a circular pattern and add it to the test flow.
+
 ## License
 
 ISC
