@@ -1,4 +1,4 @@
-import { TheFinger } from '../src/thefinger.js';
+import TheFinger from '../src/thefinger.js';
 
 const touchArea = document.querySelector('canvas');
 const finger = new TheFinger(touchArea, {
@@ -9,7 +9,7 @@ const finger = new TheFinger(touchArea, {
 const gestureType = document.querySelector('#gesture_type');
 const gestureType2 = document.querySelector('#gesture_type_2');
 
-// finger.track('tap', showGestureDetails);
+finger.track('tap', showGestureDetails);
 // finger.track('double-tap', showGestureDetails);
 // finger.track('press', showGestureDetails);
 // finger.track('long-press', showGestureDetails);
@@ -18,7 +18,7 @@ const gestureType2 = document.querySelector('#gesture_type_2');
 // finger.track('drag', showGestureDetails);
 // finger.track('pan', showGestureDetails);
 // finger.track('two-finger-tap', showGestureDetails);
-finger.track('double-tap-and-drag', showGestureDetails);
+// finger.track('double-tap-and-drag', showGestureDetails);
 
 function showGestureDetails(gesture) {
     let output = touchArea.width;

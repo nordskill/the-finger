@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import VitePluginBrowserSync from 'vite-plugin-browser-sync';
 
 export default defineConfig({
     build: {
@@ -11,6 +12,10 @@ export default defineConfig({
         }
     },
     server: {
-        open: true
-    }
-}); 
+        open: true,
+        host: true
+    },
+    plugins: [
+        VitePluginBrowserSync()
+    ]
+});
