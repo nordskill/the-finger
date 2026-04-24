@@ -2,18 +2,19 @@
 
 JavaScript library for detecting touch gestures on HTML elements.
 
-**Supported gesturs:**
+**Supported gestures:**
 - tap
 - double tap
 - press
 - long press
-- flick / swipe
 - drag
 - pinch & spread
 - rotate
 - pan
 - two finger tap
 - double tap & drag
+
+Fast `drag`, `pan`, and `double-tap-and-drag` gestures may include `flick: true` in the callback data.
 
 ## Installation
 
@@ -35,7 +36,7 @@ finger.track('tap', (gesture) => {
 });
 ```
 
-### Browser
+### Browser IIFE Build
 ```html
 <script src="https://unpkg.com/the-finger/dist/thefinger.min.js"></script>
 <script>
@@ -96,36 +97,104 @@ Manually attach/detach touch listeners.
 
 Each gesture callback receives:
 1. `gesture` - Object with gesture-specific data (coordinates, distance, angle, etc.)
-2. `touchHistory` - Map of touch point histories
+2. `touchHistory` - Map of touch point histories, except for `long-press`
 
-### Common properties:
-- `x`, `y` - Current position
-- `startX`, `startY` - Starting position  
-- `type` - Gesture type
+The `gesture` object does not include a `type` property. Its shape depends on the tracked gesture.
 
-### Gesture-specific properties:
-- **drag/pan**: `distance`, `angle`, `direction`, `speed`, `flick`
-- **rotate**: `rotation`, `angleAbsolute`, `angleRelative`
-- **pinch-spread**: `scale`, `distance`
+### Gesture Properties:
 
-### Build Outputs
-- `dist/thefinger.es.js` - ES module
-- `dist/thefinger.umd.js` - UMD module
-- `dist/thefinger.min.js` - Minified IIFE for browsers
+**tap**, **double-tap**, **press**, **long-press**
+- `x`
+- `y`
+
+**two-finger-tap**
+- `x`
+- `y`
+- `touches`
+
+**drag**
+- `x`
+- `y`
+- `startX`
+- `startY`
+- `step`
+- `speed`
+- `angle`
+- `initial_direction`
+- Final callback adds properties: `endX`, `endY`, `final_direction`, `flick`
+
+**pan**
+- `touches`
+- `x`
+- `y`
+- `startX`
+- `startY`
+- `step`
+- `speed`
+- `angle`
+- `initial_direction`
+- Final callback adds properties: `endX`, `endY`, `final_direction`, `flick`
+
+**double-tap-and-drag**
+- `x`
+- `y`
+- `startX`
+- `startY`
+- `dx`
+- `dy`
+- `dist`
+- Final callback adds properties: `endX`, `endY`, `speed`, `final_direction`, `flick`
+
+**rotate**
+- `touches`
+- `rotation`
+- `angleAbsolute`
+- `angleRelative`
+
+**pinch-spread**
+- `touches`
+- `distance`
+- `scale`
+- Final callback adds properties: `end: true`
+
+`press` emits immediately on touch start. `long-press` emits after about 350ms if the finger does not move.
+
+### Package Files
+- `./dist/thefinger.es.js` - ES module
+- `./dist/thefinger.umd.js` - UMD module
+- `./dist/thefinger.min.js` - Minified IIFE build for direct browser use
 
 ## Testing
 
-This library includes integration tests that simulate natural finger movements to verify gesture detection in a real environment using `index.html`, `dev/test.js`, and `dev/visualizer.js`.
+This library includes development integration helpers that simulate natural finger movements using `index.html`, `dev/test.js`, and `dev/visualizer.js`.
 
 ### Running Tests
 
-1. Start the development server (assumes Vite):
+1. Install development dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Start the browser integration tests:
+
+   ```bash
+   npm test
+   ```
+
+   This starts Vite, opens the demo page with `?test`, and runs the gesture simulations in the browser. Check DevTools Console for green PASS and red FAIL results.
+
+### Manual Browser Test
+
+1. Start the development server:
 
    ```bash
    npm start
    ```
 
-2. Open the page in your browser with the `?test` query parameter, e.g.:
+   If startup fails with a missing package such as `vite-plugin-browser-sync`, run `npm install` again and retry `npm start`.
+
+2. Open the page in your browser with the `?test` query parameter. Use the local URL printed by Vite, for example:
 
    http://localhost:5173/?test
 

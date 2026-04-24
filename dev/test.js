@@ -8,6 +8,7 @@ const finger = new TheFinger(touchArea, {
 
 const gestureType = document.querySelector('#gesture_type');
 const gestureType2 = document.querySelector('#gesture_type_2');
+let activeTestErrors = null;
 
 finger.track('tap', showGestureDetails);
 finger.track('double-tap', showGestureDetails);
@@ -59,30 +60,165 @@ async function runIntegrationTests() {
     for (const gesture of gestures) {
         console.log(`Testing ${gesture}`);
 
-        let detectedGestures = [];
+        const detectedGestures = [];
+        const errors = [];
         const finger = new TheFinger(touchArea, { preventDefault: true });
 
-        finger.track(gesture, (g) => {
-            detectedGestures.push(g);
-        });
+        activeTestErrors = errors;
+        window.addEventListener('error', recordTestError);
+        window.addEventListener('unhandledrejection', recordUnhandledRejection);
 
-        await simulateGesture(gesture, touchArea, elem);
+        finger.track(gesture, recordGesture);
 
-        // Wait a bit for any final events
-        await new Promise(resolve => setTimeout(resolve, 500));
+        try {
+            await simulateGesture(gesture, touchArea, elem);
 
-        const detected = detectedGestures.length > 0;
-        if (detected) {
-            console.log(`PASS: ${gesture} detected`);
-        } else {
-            console.log(`FAIL: ${gesture} not detected`);
-            console.log('Detected details (empty):', detectedGestures);
+            // Wait a bit for any final events
+            await wait(500);
+        } catch (error) {
+            errors.push(error);
         }
 
+        const detected = detectedGestures.length > 0;
+        const validationErrors = validateGestureResult(gesture, detectedGestures);
+        const testErrors = [
+            ...validationErrors,
+            ...errors.map(formatError)
+        ];
+
+        if (detected && testErrors.length === 0) {
+            logPass(`${gesture} detected`);
+        } else {
+            if (!detected) {
+                testErrors.unshift(`Expected ${gesture} to emit at least one callback, but no callbacks were received.`);
+            }
+
+            logFail(gesture);
+            console.log('Detected details:', detectedGestures);
+            console.log('Expected:', getGestureExpectations(gesture));
+            console.log('Errors:', testErrors);
+        }
+
+        window.removeEventListener('error', recordTestError);
+        window.removeEventListener('unhandledrejection', recordUnhandledRejection);
+        activeTestErrors = null;
         finger.off(touchArea);
+
+        function recordGesture(gestureData) {
+            detectedGestures.push(gestureData);
+        }
     }
 
     console.log('All tests completed');
+}
+
+function logPass(message) {
+    console.log(`%cPASS: ${message}`, 'color: #16a34a; font-weight: bold;');
+}
+
+function logFail(message) {
+    console.log(`%cFAIL: ${message}`, 'color: #dc2626; font-weight: bold;');
+}
+
+function recordTestError(event) {
+    if (!activeTestErrors) return;
+
+    activeTestErrors.push(event.error || event.message);
+}
+
+function recordUnhandledRejection(event) {
+    if (!activeTestErrors) return;
+
+    activeTestErrors.push(event.reason);
+}
+
+function validateGestureResult(gesture, detectedGestures) {
+    if (detectedGestures.length === 0) return [];
+
+    switch (gesture) {
+        case 'drag':
+        case 'pan':
+            return validateFinalGesture(
+                gesture,
+                detectedGestures,
+                ['endX', 'endY', 'final_direction', 'flick']
+            );
+        case 'pinch-spread':
+            return validateFinalGestureEnd(gesture, detectedGestures);
+        case 'double-tap-and-drag':
+            return validateFinalGesture(
+                gesture,
+                detectedGestures,
+                ['endX', 'endY', 'speed', 'final_direction', 'flick']
+            );
+        default:
+            return [];
+    }
+}
+
+function validateFinalGesture(gesture, detectedGestures, expectedProperties) {
+    const missingByEvent = [];
+
+    for (let i = 0; i < detectedGestures.length; i++) {
+        const gestureData = detectedGestures[i];
+        const missingProperties = [];
+
+        for (const property of expectedProperties) {
+            if (!(property in gestureData)) {
+                missingProperties.push(property);
+            }
+        }
+
+        if (missingProperties.length === 0) return [];
+
+        missingByEvent.push(`#${i + 1} missing ${missingProperties.join(', ')}`);
+    }
+
+    return [
+        `Expected ${gesture} to emit a final callback with ${expectedProperties.join(', ')}.`,
+        `Received ${detectedGestures.length} callback(s), but none matched: ${missingByEvent.join('; ')}.`
+    ];
+}
+
+function validateFinalGestureEnd(gesture, detectedGestures) {
+    const mismatches = [];
+
+    for (let i = 0; i < detectedGestures.length; i++) {
+        const gestureData = detectedGestures[i];
+
+        if (gestureData.end === true) return [];
+
+        mismatches.push(`#${i + 1} has end=${String(gestureData.end)}`);
+    }
+
+    return [
+        `Expected ${gesture} to emit a final callback with end: true.`,
+        `Received ${detectedGestures.length} callback(s), but none matched: ${mismatches.join('; ')}.`
+    ];
+}
+
+function getGestureExpectations(gesture) {
+    switch (gesture) {
+        case 'drag':
+        case 'pan':
+            return 'At least one callback, plus a final callback with endX, endY, final_direction, flick.';
+        case 'pinch-spread':
+            return 'At least one callback, plus a final callback with end: true.';
+        case 'double-tap-and-drag':
+            return 'At least one callback, plus a final callback with endX, endY, speed, final_direction, flick.';
+        default:
+            return 'At least one callback.';
+    }
+}
+
+function formatError(error) {
+    if (error instanceof Error) return `${error.name}: ${error.message}`;
+    if (typeof error === 'string') return error;
+    return JSON.stringify(error);
+}
+
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function simulateGesture(gesture, target, elem) {
