@@ -433,8 +433,52 @@ class TheFinger {
                 return null;
             },
             end: () => {
+                if (
+                    !this.#doubleTapDragActive ||
+                    this.#gestureType !== 'double-tap-and-drag' ||
+                    this.#touchHistory.size === 0
+                ) {
+                    this.#doubleTapDragActive = false;
+                    this.#doubleTapDragStart = null;
+                    return null;
+                }
+
+                const history = this.#touchHistory.values().next().value;
+
+                if (!history?.x?.length || !history?.y?.length) {
+                    this.#doubleTapDragActive = false;
+                    this.#doubleTapDragStart = null;
+                    return null;
+                }
+
+                const x_arr = history.x;
+                const y_arr = history.y;
+                const endX = x_arr[x_arr.length - 1];
+                const endY = y_arr[y_arr.length - 1];
+                const speed = this.#getSpeed();
+
+                this.#currentTouch.endX = endX;
+                this.#currentTouch.endY = endY;
+                this.#currentTouch.speed = speed;
+
+                if (x_arr.length > 1 && y_arr.length > 1) {
+                    this.#currentTouch.final_direction = this.#getDirection(
+                        x_arr[x_arr.length - 2],
+                        y_arr[y_arr.length - 2],
+                        endX,
+                        endY
+                    );
+                }
+
+                this.#currentTouch.flick = speed >= CONSTANTS.FLICK_THRESHOLD;
+
                 this.#doubleTapDragActive = false;
                 this.#doubleTapDragStart = null;
+
+                return {
+                    type: 'double-tap-and-drag',
+                    data: this.#currentTouch
+                };
             }
         },
     };
