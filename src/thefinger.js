@@ -22,6 +22,8 @@ class TheFinger {
     #startY;
     #endX;
     #endY;
+    #lastDragPayload = null;
+    #lastPanPayload = null;
     #rotationAngleStart;
     #totalAngleStart;
     #previousAngle = null;
@@ -29,6 +31,7 @@ class TheFinger {
     #revs = 0;
     #negativeRev = false;
     #distanceStart;
+    #lastPinchSpreadPayload = null;
     #watching = {};
     #preventDefaults = {};
     #touchHistory = new Map();
@@ -36,6 +39,7 @@ class TheFinger {
     #initialDirection;
     #doubleTapDragActive = false;
     #doubleTapDragStart = null;
+    #lastDoubleTapDragPayload = null;
 
     gestures = {
 
@@ -138,7 +142,7 @@ class TheFinger {
                 // Get previous x, y coordinates using helper method
                 const { prevX, prevY } = this.#getPreviousCoordinates(touches, this.#startX, this.#startY);
 
-                this.#currentTouch = {
+                const data = {
                     x,
                     y,
                     startX: this.#startX,
@@ -150,16 +154,19 @@ class TheFinger {
 
                 if (!this.#initialDirection) {
                     this.#initialDirection = this.#getDirection(this.#startX, this.#startY, x, y);
-                    this.#currentTouch.initial_direction = this.#initialDirection;
+                    data.initial_direction = this.#initialDirection;
                 }
+
+                this.#lastDragPayload = data;
+                this.#currentTouch = data;
 
                 return {
                     type: 'drag',
-                    data: this.#currentTouch
+                    data
                 };
             },
             end: () => {
-                if (!this.#moving || this.#touchHistory.size === 0 || this.#gestureType !== 'drag') return null;
+                if (!this.#moving || this.#touchHistory.size === 0 || !this.#lastDragPayload) return null;
 
                 const history = this.#touchHistory.values().next().value;
                 if (!history?.x?.length || !history?.y?.length) return null;
@@ -170,25 +177,26 @@ class TheFinger {
                 this.#endX = x_arr[x_arr.length - 1];
                 this.#endY = y_arr[y_arr.length - 1];
 
-                this.#currentTouch.endX = this.#endX;
-                this.#currentTouch.endY = this.#endY;
-                this.#currentTouch.speed = this.#getSpeed();
-                this.#currentTouch.initial_direction = this.#initialDirection;
+                this.#lastDragPayload.endX = this.#endX;
+                this.#lastDragPayload.endY = this.#endY;
+                this.#lastDragPayload.speed = this.#getSpeed();
+                this.#lastDragPayload.initial_direction = this.#initialDirection;
 
                 if (x_arr.length > 1 && y_arr.length > 1) {
-                    this.#currentTouch.final_direction = this.#getDirection(
+                    this.#lastDragPayload.final_direction = this.#getDirection(
                         x_arr[x_arr.length - 2],
                         y_arr[y_arr.length - 2],
-                        this.#currentTouch.endX,
-                        this.#currentTouch.endY
+                        this.#lastDragPayload.endX,
+                        this.#lastDragPayload.endY
                     );
                 }
 
-                this.#currentTouch.flick = this.#currentTouch.speed >= CONSTANTS.FLICK_THRESHOLD;
+                this.#lastDragPayload.flick = this.#lastDragPayload.speed >= CONSTANTS.FLICK_THRESHOLD;
+                this.#currentTouch = this.#lastDragPayload;
 
                 return {
                     type: 'drag',
-                    data: this.#currentTouch
+                    data: this.#lastDragPayload
                 };
             }
         },
@@ -208,7 +216,7 @@ class TheFinger {
                 // Get previous x, y coordinates using helper method
                 const { prevX, prevY } = this.#getPreviousCoordinates(touches, this.#startX, this.#startY);
 
-                this.#currentTouch = {
+                const data = {
                     touches: touchesArr,
                     x,
                     y,
@@ -221,16 +229,20 @@ class TheFinger {
 
                 if (!this.#initialDirection) {
                     this.#initialDirection = this.#getDirection(this.#startX, this.#startY, x, y);
-                    this.#currentTouch.initial_direction = this.#initialDirection;
+                    data.initial_direction = this.#initialDirection;
                 }
 
-                return { type: 'pan', data: this.#currentTouch };
+                this.#lastPanPayload = data;
+                this.#currentTouch = data;
+
+                return { type: 'pan', data };
             },
             end: () => {
                 if (
                     this.#touchSequence.length < 2 ||
                     !this.#moving ||
-                    this.#touchHistory.size === 0
+                    this.#touchHistory.size === 0 ||
+                    !this.#lastPanPayload
                 ) return null;
 
                 // build touches[] from the last point of every finger's history
@@ -244,8 +256,8 @@ class TheFinger {
                 const y = touchesFinal.reduce((s, t) => s + t.y, 0) / len;
 
                 // Get previous position for angle calculation
-                let prevX = this.#currentTouch.x || this.#startX;
-                let prevY = this.#currentTouch.y || this.#startY;
+                let prevX = this.#lastPanPayload.x || this.#startX;
+                let prevY = this.#lastPanPayload.y || this.#startY;
 
                 // Get average of 5th-to-last positions if available
                 let sumPrevX = 0, sumPrevY = 0;
@@ -266,7 +278,7 @@ class TheFinger {
 
                 const speed = this.#getSpeed();
 
-                this.#currentTouch = {
+                this.#lastPanPayload = {
                     touches: touchesFinal,
                     x,
                     y,
@@ -281,8 +293,9 @@ class TheFinger {
                     final_direction: this.#getDirection(this.#startX, this.#startY, x, y),
                     flick: speed >= CONSTANTS.FLICK_THRESHOLD
                 };
+                this.#currentTouch = this.#lastPanPayload;
 
-                return { type: 'pan', data: this.#currentTouch };
+                return { type: 'pan', data: this.#lastPanPayload };
             }
         },
 
@@ -348,7 +361,7 @@ class TheFinger {
                 this.#distanceStart = this.#getDistance(x1, y1, x2, y2);
             },
             move: (touches) => {
-                if (touches.length !== 2 || !this.#watching['pinch-spread']) return null;
+                if (touches.length !== 2) return null;
 
                 const [touch1, touch2] = touches;
                 const x1 = touch1.clientX;
@@ -368,6 +381,7 @@ class TheFinger {
                     scale
                 };
 
+                this.#lastPinchSpreadPayload = data;
                 this.#currentTouch = data;
 
                 return {
@@ -376,15 +390,18 @@ class TheFinger {
                 };
             },
             end: () => {
-                if (this.#gestureType !== 'pinch-spread' ||
+                if (
                     !this.#moving ||
-                    this.#touchHistory.size === 0) return null;
+                    this.#touchHistory.size === 0 ||
+                    this.#lastPinchSpreadPayload?.scale == null
+                ) return null;
 
-                this.#currentTouch.end = true;
+                this.#lastPinchSpreadPayload.end = true;
+                this.#currentTouch = this.#lastPinchSpreadPayload;
 
                 return {
                     type: 'pinch-spread',
-                    data: this.#currentTouch
+                    data: this.#lastPinchSpreadPayload
                 };
             }
         },
@@ -416,7 +433,7 @@ class TheFinger {
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > CONSTANTS.DOUBLE_TAP_DRAG_THRESHOLD) {
                     this.#gestureType = 'double-tap-and-drag';
-                    this.#currentTouch = {
+                    const data = {
                         x,
                         y,
                         startX: this.#doubleTapDragStart.x,
@@ -425,9 +442,12 @@ class TheFinger {
                         dy,
                         dist
                     };
+                    this.#lastDoubleTapDragPayload = data;
+                    this.#currentTouch = data;
+
                     return {
                         type: 'double-tap-and-drag',
-                        data: this.#currentTouch
+                        data
                     };
                 }
                 return null;
@@ -435,7 +455,7 @@ class TheFinger {
             end: () => {
                 if (
                     !this.#doubleTapDragActive ||
-                    this.#gestureType !== 'double-tap-and-drag' ||
+                    !this.#lastDoubleTapDragPayload ||
                     this.#touchHistory.size === 0
                 ) {
                     this.#doubleTapDragActive = false;
@@ -457,12 +477,12 @@ class TheFinger {
                 const endY = y_arr[y_arr.length - 1];
                 const speed = this.#getSpeed();
 
-                this.#currentTouch.endX = endX;
-                this.#currentTouch.endY = endY;
-                this.#currentTouch.speed = speed;
+                this.#lastDoubleTapDragPayload.endX = endX;
+                this.#lastDoubleTapDragPayload.endY = endY;
+                this.#lastDoubleTapDragPayload.speed = speed;
 
                 if (x_arr.length > 1 && y_arr.length > 1) {
-                    this.#currentTouch.final_direction = this.#getDirection(
+                    this.#lastDoubleTapDragPayload.final_direction = this.#getDirection(
                         x_arr[x_arr.length - 2],
                         y_arr[y_arr.length - 2],
                         endX,
@@ -470,14 +490,15 @@ class TheFinger {
                     );
                 }
 
-                this.#currentTouch.flick = speed >= CONSTANTS.FLICK_THRESHOLD;
+                this.#lastDoubleTapDragPayload.flick = speed >= CONSTANTS.FLICK_THRESHOLD;
+                this.#currentTouch = this.#lastDoubleTapDragPayload;
 
                 this.#doubleTapDragActive = false;
                 this.#doubleTapDragStart = null;
 
                 return {
                     type: 'double-tap-and-drag',
-                    data: this.#currentTouch
+                    data: this.#lastDoubleTapDragPayload
                 };
             }
         },
@@ -556,6 +577,10 @@ class TheFinger {
         this.#revs = 0;
         this.#negativeRev = false;
         this.#gestureType = null;
+        this.#lastDragPayload = null;
+        this.#lastPanPayload = null;
+        this.#lastPinchSpreadPayload = null;
+        this.#lastDoubleTapDragPayload = null;
 
         this.#createTouches(touches, timestamp);
 
