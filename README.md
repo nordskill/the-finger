@@ -163,6 +163,7 @@ The `gesture` object does not include a `type` property. Its shape depends on th
 - `./dist/thefinger.es.js` - ES module
 - `./dist/thefinger.umd.js` - UMD module
 - `./dist/thefinger.min.js` - Minified IIFE build for direct browser use
+- Build output includes source map files for the generated JavaScript files
 
 ## Testing
 

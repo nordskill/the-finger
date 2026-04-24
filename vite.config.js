@@ -4,6 +4,7 @@ import VitePluginBrowserSync from 'vite-plugin-browser-sync';
 
 export default defineConfig({
     build: {
+        sourcemap: true,
         lib: {
             entry: resolve(__dirname, 'src/thefinger.js'),
             name: 'TheFinger',
