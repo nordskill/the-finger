@@ -154,8 +154,9 @@ class TheFinger {
 
                 if (!this.#initialDirection) {
                     this.#initialDirection = this.#getDirection(this.#startX, this.#startY, x, y);
-                    data.initial_direction = this.#initialDirection;
                 }
+
+                data.initial_direction = this.#initialDirection;
 
                 this.#lastDragPayload = data;
                 this.#currentTouch = data;
